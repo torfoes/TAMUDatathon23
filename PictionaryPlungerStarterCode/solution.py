@@ -1,49 +1,51 @@
 # IMPORTANT
 # unless you're willing to change the run.py script, keep the new_case, guess, and add_score methods.
 
-import numpy as np
-import tensorflow as tf
+import torch
+import torch.nn as nn
+import torch.optim as optim
 import os
-from tensorflow.keras import layers, Model
+import numpy as np
 
 # Encoder
-class Encoder(Model):
+class Encoder(nn.Module):
     def __init__(self, enc_rnn_size=256, z_size=128):
         super(Encoder, self).__init__()
-        self.rnn = layers.LSTM(enc_rnn_size, return_sequences=False)
-        self.fc_mu = layers.Dense(z_size)
-        self.fc_logvar = layers.Dense(z_size)
+        self.rnn = nn.LSTM(input_size=2, hidden_size=enc_rnn_size, batch_first=True)
+        self.fc_mu = nn.Linear(enc_rnn_size, z_size)
+        self.fc_logvar = nn.Linear(enc_rnn_size, z_size)
 
-    def call(self, x):
-        h = self.rnn(x)
+    def forward(self, x):
+        _, (h, _) = self.rnn(x)
+        h = h.squeeze(0)
         mu = self.fc_mu(h)
         logvar = self.fc_logvar(h)
         return mu, logvar
 
 # Decoder
-class Decoder(Model):
+class Decoder(nn.Module):
     def __init__(self, dec_rnn_size=512, num_mixture=20, z_size=128):
         super(Decoder, self).__init__()
-        self.rnn = layers.LSTM(dec_rnn_size, return_sequences=True)
-        self.fc = layers.Dense(num_mixture)
-        self.fc_z = layers.Dense(dec_rnn_size)
+        self.rnn = nn.LSTM(input_size=2 + dec_rnn_size, hidden_size=dec_rnn_size, batch_first=True)
+        self.fc = nn.Linear(dec_rnn_size, num_mixture)
+        self.fc_z = nn.Linear(z_size, dec_rnn_size)
 
-    def call(self, x, z):
-        z_input = self.fc_z(z)
-        x = tf.concat([x, tf.tile(tf.expand_dims(z_input, 1), [1, tf.shape(x)[1], 1])], axis=-1)
-        out = self.rnn(x)
+    def forward(self, x, z):
+        z_input = self.fc_z(z).unsqueeze(1)
+        x = torch.cat([x, z_input.expand(-1, x.size(1), -1)], dim=-1)
+        out, _ = self.rnn(x)
         out = self.fc(out)
         return out
 
 # SketchRNN Model
-class SketchRNN(Model):
+class SketchRNN(nn.Module):
     def __init__(self, num_classes=345, enc_rnn_size=256, dec_rnn_size=512, z_size=128, num_mixture=20):
         super(SketchRNN, self).__init__()
         self.encoder = Encoder(enc_rnn_size, z_size)
         self.decoder = Decoder(dec_rnn_size, num_mixture, z_size)
-        self.fc = layers.Dense(num_classes)
+        self.fc = nn.Linear(dec_rnn_size, num_classes)
 
-    def call(self, x):
+    def forward(self, x):
         mu, logvar = self.encoder(x)
         z = self.reparameterize(mu, logvar)
         out = self.decoder(x, z)
@@ -51,35 +53,45 @@ class SketchRNN(Model):
         return out
 
     def reparameterize(self, mu, logvar):
-        eps = tf.random.normal(shape=mu.shape)
-        return eps * tf.exp(logvar * .5) + mu
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + eps * std
 
-class Solution:
-    def __init__(self, data_path="C:\\Users\\bunin\\Documents\\TAMUDatathon23\\quick_draw_data", model_weights_path=None):
-        # Ensure the path exists
-        if not os.path.exists(data_path):
-            raise ValueError("Provided data path does not exist!")
+# For the dataset, since the data files are .npy files, we can create a custom PyTorch Dataset for it
+from torch.utils.data import Dataset, DataLoader
 
-        self.num_classes = len(os.listdir(data_path))
-        self.label_to_name = {i: name.split('.')[0] for i, name in enumerate(os.listdir(data_path))}
-        self.model = SketchRNN(num_classes=self.num_classes)
+class QuickDrawDataset(Dataset):
+    def __init__(self, data_path):
+        self.data_path = data_path
+        self.files = [f for f in os.listdir(data_path) if f.endswith('.npy')]
 
+    def __len__(self):
+        return len(self.files)
 
-    def new_case(self):
-        # This is a signal that a new drawing is about to be sent.
-        pass
+    def __getitem__(self, idx):
+        data = np.load(os.path.join(self.data_path, self.files[idx]))
+        return torch.tensor(data, dtype=torch.float32)
 
-    def guess(self, x: list[int], y: list[int]) -> str:
-        strokes = np.array([x, y]).astype(np.float32)
-        # Convert the strokes to a tensor
-        strokes_tensor = tf.convert_to_tensor(strokes, dtype=tf.float32)
-        strokes_tensor = tf.expand_dims(strokes_tensor, axis=0)
-        outputs = self.model(strokes_tensor)
-        predicted = tf.argmax(outputs, axis=1).numpy()
-        return self.label_to_name[predicted[0]]
+# Training the model
+def train_model(model, data_loader, optimizer, num_epochs):
+    criterion = nn.CrossEntropyLoss()
+    model.train()
+    for epoch in range(num_epochs):
+        for batch in data_loader:
+            # Assuming the batch is a tuple (data, labels)
+            data, labels = batch
+            optimizer.zero_grad()
+            outputs = model(data)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+        print(f'Epoch {epoch+1}/{num_epochs}, Loss: {loss.item()}')
 
-    def add_score(self, score: int):
-        print(score)
+# Loading the dataset and training the model
+dataset = QuickDrawDataset("C:\\Users\\bunin\\Documents\\TAMUDatathon23\\quick_draw_data")
+data_loader = DataLoader(dataset, batch_size=100, shuffle=True)
 
-# Example of how to initialize the solution with model weights:
-# solution = Solution(model_weights_path="path_to_your_model_weights.h5")
+model = SketchRNN(num_classes=len(dataset))
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+train_model(model, data_loader, optimizer, num_epochs=10)  # Adjust num_epochs as needed

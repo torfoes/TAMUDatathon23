@@ -54,13 +54,6 @@ class SketchRNN(Model):
         eps = tf.random.normal(shape=mu.shape)
         return eps * tf.exp(logvar * .5) + mu
 
-import numpy as np
-import tensorflow as tf
-import os
-from tensorflow.keras import layers, Model
-
-# [Encoder, Decoder, and SketchRNN classes remain unchanged.]
-
 class Solution:
     def __init__(self, data_path="C:\\Users\\bunin\\Documents\\TAMUDatathon23\\quick_draw_data", model_weights_path=None):
         # Ensure the path exists
@@ -71,11 +64,6 @@ class Solution:
         self.label_to_name = {i: name.split('.')[0] for i, name in enumerate(os.listdir(data_path))}
         self.model = SketchRNN(num_classes=self.num_classes)
 
-        # Load the model weights here if provided.
-        if model_weights_path:
-            if not os.path.exists(model_weights_path):
-                raise ValueError("Provided model weights path does not exist!")
-            self.model.load_weights(model_weights_path)
 
     def new_case(self):
         # This is a signal that a new drawing is about to be sent.

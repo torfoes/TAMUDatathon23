@@ -17,6 +17,9 @@ class Solution:
     # should return [linear_acceleration, angular_acceleration]
     def get_action(self, robot_observation):
         # TODO replace code here to see robot_observation to compute an action whenever your robot receives an observation
+        print(robot_observation[0], robot_observation[1], robot_observation[2], robot_observation[3])
+
+
 
         return [random.random() - .5, random.random() - .5]
 

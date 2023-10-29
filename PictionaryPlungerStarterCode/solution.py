@@ -3,18 +3,8 @@
 
 import numpy as np
 import tensorflow as tf
-import cv2
+import os
 from tensorflow.keras import layers, Model
-
-
-# Helper function to convert strokes to image format
-def strokes_to_image(strokes):
-    image = np.zeros((256, 256), dtype=np.uint8)
-    for stroke in strokes:
-        for i in range(len(stroke[0]) - 1):
-            cv2.line(image, (stroke[0][i], stroke[1][i]), (stroke[0][i + 1], stroke[1][i + 1]), 255, 3)
-    return image
-
 
 # Encoder
 class Encoder(Model):
@@ -30,7 +20,6 @@ class Encoder(Model):
         logvar = self.fc_logvar(h)
         return mu, logvar
 
-
 # Decoder
 class Decoder(Model):
     def __init__(self, dec_rnn_size=512, num_mixture=20, z_size=128):
@@ -45,7 +34,6 @@ class Decoder(Model):
         out = self.rnn(x)
         out = self.fc(out)
         return out
-
 
 # SketchRNN Model
 class SketchRNN(Model):
@@ -66,12 +54,12 @@ class SketchRNN(Model):
         eps = tf.random.normal(shape=mu.shape)
         return eps * tf.exp(logvar * .5) + mu
 
-
 class Solution:
-    def __init__(self):
-        self.num_classes = 345  # Assuming there are 345 classes, modify as needed
+    def __init__(self, data_path="C:\\Users\\bunin\\Documents\\TAMUDatathon23\\quick_draw_data"):
+        self.num_classes = len(os.listdir(data_path))
+        self.label_to_name = {i: name.split('.')[0] for i, name in enumerate(os.listdir(data_path))}
         self.model = SketchRNN(num_classes=self.num_classes)
-        # Assuming the model weights are loaded somewhere, if needed
+        # TODO: Load the model weights here if needed.
 
     # This is a signal that a new drawing is about to be sent
     def new_case(self):
@@ -79,17 +67,16 @@ class Solution:
 
     # Given a stroke, return a string of your guess
     def guess(self, x: list[int], y: list[int]) -> str:
-        strokes = [x, y]
-        image = strokes_to_image(strokes)
-        # Convert the image to a tensor
-        image_tensor = tf.convert_to_tensor(image, dtype=tf.float32)
-        image_tensor = tf.expand_dims(image_tensor, axis=0)
-        outputs = self.model(image_tensor)
+        strokes = np.array([x, y]).astype(np.float32)
+        # Convert the strokes to a tensor
+        strokes_tensor = tf.convert_to_tensor(strokes, dtype=tf.float32)
+        strokes_tensor = tf.expand_dims(strokes_tensor, axis=0)
+        outputs = self.model(strokes_tensor)
         predicted = tf.argmax(outputs, axis=1).numpy()
-        # Return the label name based on the prediction
-        # Here, you'd map the predicted index to its corresponding label name
         return self.label_to_name[predicted[0]]
 
-    # This function is called when you get
     def add_score(self, score: int):
         print(score)
+
+# You can initialize the solution like this:
+solution = Solution()

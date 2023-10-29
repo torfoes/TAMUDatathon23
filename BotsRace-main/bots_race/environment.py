@@ -26,6 +26,9 @@ class Environment:
             self.orientation_visualization, = plt.plot(orientation_x, orientation_y, 'ro', markersize=2)
             plt.gca().add_patch(self.robot_visualization) # add robot as a circle
 
+
+
+
             # need a comma to destructure return value
             track_x, track_y = zip(*self.track.points)
             self.track_visualization, = plt.plot(track_x, track_y, color='green')

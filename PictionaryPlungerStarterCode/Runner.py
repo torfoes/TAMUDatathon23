@@ -8,7 +8,7 @@ from Evaluator import Evaluator
 class Runner:
     # test_case_dir should be a string containing the directory of where the test cases are stored
     # for the user, this should be the cases folder in the evaluator's directory
-    def __init__(self, test_case_dir="./cases", n_cases=5):
+    def __init__(self, test_case_dir="C:\\Users\\bunin\\Documents\\TAMUDatathon23\\quick_draw_data", n_cases=5):
         self.directory = test_case_dir
         self.n = n_cases
         self.total_score = 0

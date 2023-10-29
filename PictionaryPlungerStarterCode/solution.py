@@ -54,18 +54,33 @@ class SketchRNN(Model):
         eps = tf.random.normal(shape=mu.shape)
         return eps * tf.exp(logvar * .5) + mu
 
+import numpy as np
+import tensorflow as tf
+import os
+from tensorflow.keras import layers, Model
+
+# [Encoder, Decoder, and SketchRNN classes remain unchanged.]
+
 class Solution:
-    def __init__(self, data_path="C:\\Users\\bunin\\Documents\\TAMUDatathon23\\quick_draw_data"):
+    def __init__(self, data_path="C:\\Users\\bunin\\Documents\\TAMUDatathon23\\quick_draw_data", model_weights_path=None):
+        # Ensure the path exists
+        if not os.path.exists(data_path):
+            raise ValueError("Provided data path does not exist!")
+
         self.num_classes = len(os.listdir(data_path))
         self.label_to_name = {i: name.split('.')[0] for i, name in enumerate(os.listdir(data_path))}
         self.model = SketchRNN(num_classes=self.num_classes)
-        # TODO: Load the model weights here if needed.
 
-    # This is a signal that a new drawing is about to be sent
+        # Load the model weights here if provided.
+        if model_weights_path:
+            if not os.path.exists(model_weights_path):
+                raise ValueError("Provided model weights path does not exist!")
+            self.model.load_weights(model_weights_path)
+
     def new_case(self):
+        # This is a signal that a new drawing is about to be sent.
         pass
 
-    # Given a stroke, return a string of your guess
     def guess(self, x: list[int], y: list[int]) -> str:
         strokes = np.array([x, y]).astype(np.float32)
         # Convert the strokes to a tensor
@@ -78,5 +93,5 @@ class Solution:
     def add_score(self, score: int):
         print(score)
 
-# You can initialize the solution like this:
-solution = Solution()
+# Example of how to initialize the solution with model weights:
+# solution = Solution(model_weights_path="path_to_your_model_weights.h5")
